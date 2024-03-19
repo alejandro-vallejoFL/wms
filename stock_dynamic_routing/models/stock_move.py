@@ -59,18 +59,14 @@ class StockMove(models.Model):
         self._apply_routing_rule_push(moves_with_routing_details)
 
     def _action_assign(self, force_qty=False):
-        if self.env.context.get("exclude_apply_dynamic_routing") or self.picking_id._context.get("already_assigned"):
+        # if self.env.context.get("exclude_apply_dynamic_routing") or self.picking_id._context.get("already_assigned"):
+        if self.env.context.get("exclude_apply_dynamic_routing"):
             return super()._action_assign(force_qty=force_qty)
         else:
             # these methods will call _action_assign in a savepoint
             # and modify the routing if necessary
-            # import pdb;pdb.set_trace()
-            
             moves = self._split_and_apply_routing()
-            for move in moves:
-                if move.picking_id.state in ["draft","confirmed", "waiting"] and not move.picking_id._context.get('already_assigned', False):
-                    # move.picking_id.with_context(already_assigned=True).action_assign()
-                    return super(StockMove, move)._action_assign()
+            return super(StockMove, moves)._action_assign()
 
     def _split_and_apply_routing(self):
         """Apply routing rules
@@ -179,7 +175,6 @@ class StockMove(models.Model):
                             self.RoutingDetails(rule, destination)
                         ] = qty
                 else:
-                    # import pdb;pdb.set_trace()
                     moves_routing[move][self.RoutingDetails(rule, no_loc)] = sum(
                         move_lines.mapped("reserved_qty")
                     )
@@ -199,43 +194,6 @@ class StockMove(models.Model):
                 moves_routing[move].setdefault(routing_details, 0)
                 moves_routing[move][routing_details] += missing_reserved_quantity
         return moves_routing
-
-    # def _routing_splits(self, moves_routing):
-    #     """Split moves according to routing rules
-
-    #     This method splits the move in as many routing pull rules they have.
-
-    #     This method returns the routing details that will be passed to
-    #     ``_apply_routing_rule_pull`` / ``_apply_routing_rule_push`` to apply
-    #     them.
-    #     """
-    #     moves_with_routing_details = {}
-    #     import pdb;pdb.set_trace()
-    #     for move, routing_quantities in moves_routing.items():
-    #         moves_with_routing_details[move] = self._no_routing_details()
-    #         # import pdb;pdb.set_trace()
-    #         for routing_details, qty in routing_quantities.items():
-    #             # When the rule is empty, it means we have no dynamic routing
-    #             # for the move, so we have nothing to do, it will behave as
-    #             # normally.
-    #             if not routing_details.rule:
-    #                 continue
-    #             # If we have a dynamic routing, the move may have several
-    #             # lines with different routing (or lines with a dynamic
-    #             # routing, lines without). We split the lines according to
-    #             # these.
-    #             import pdb;pdb.set_trace()
-    #             new_move_vals = move._split(qty)
-    #             if new_move_vals:
-    #                 new_move = self.env["stock.move"].create(new_move_vals)
-    #                 new_move._action_confirm(merge=False)
-    #             else:
-    #                 # If no split occurred keep the current move
-    #                 new_move = move
-    #             moves_with_routing_details[new_move] = routing_details
-
-    #     return moves_with_routing_details
-    
 
     def _routing_splits(self, moves_routing):
         """Split moves according to routing rules
@@ -258,19 +216,17 @@ class StockMove(models.Model):
                 # If we have a dynamic routing, the move may have several
                 # lines with different routing (or lines with a dynamic
                 # routing, lines without). We split the lines according to
-                # these.                
-                # Reserve quantities on the original move before splitting
-                
-                if not move.picking_id._context.get('already_assigned', False) and move.reserved_availability < move.product_uom_qty:
-                    move.picking_id.with_context(already_assigned=True)
-                    move.with_context(exclude_apply_dynamic_routing=True)._action_assign()
-                    import pdb;pdb.set_trace()
-                
+                # these.
                 new_move_vals = move._split(qty)
+                # if not move.picking_id._context.get('already_assigned', False) and move.reserved_availability < move.product_uom_qty:
+                # move.with_context(already_assigned=True)._action_assign()
+                move.with_context(exclude_apply_dynamic_routing=True)._action_assign()
+                
                 if new_move_vals:
                     new_move = self.env["stock.move"].create(new_move_vals)
                     # new_move._action_confirm(merge=False)
-                    new_move.with_context(exclude_apply_dynamic_routing=True)._action_confirm(merge=False)
+                    #TODO
+                    # new_move.with_context(exclude_apply_dynamic_routing=True)._action_confirm(merge=False)
                 else:
                     # If no split occurred keep the current move
                     new_move = move
