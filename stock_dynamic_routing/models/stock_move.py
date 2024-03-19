@@ -59,6 +59,7 @@ class StockMove(models.Model):
         self._apply_routing_rule_push(moves_with_routing_details)
 
     def _action_assign(self, force_qty=False):
+        # if self.env.context.get("exclude_apply_dynamic_routing") or self.picking_id._context.get("already_assigned"):
         if self.env.context.get("exclude_apply_dynamic_routing"):
             return super()._action_assign(force_qty=force_qty)
         else:
@@ -217,9 +218,15 @@ class StockMove(models.Model):
                 # routing, lines without). We split the lines according to
                 # these.
                 new_move_vals = move._split(qty)
+                # if not move.picking_id._context.get('already_assigned', False) and move.reserved_availability < move.product_uom_qty:
+                # move.with_context(already_assigned=True)._action_assign()
+                move.with_context(exclude_apply_dynamic_routing=True)._action_assign()
+                
                 if new_move_vals:
                     new_move = self.env["stock.move"].create(new_move_vals)
-                    new_move._action_confirm(merge=False)
+                    # new_move._action_confirm(merge=False)
+                    #TODO
+                    # new_move.with_context(exclude_apply_dynamic_routing=True)._action_confirm(merge=False)
                 else:
                     # If no split occurred keep the current move
                     new_move = move
